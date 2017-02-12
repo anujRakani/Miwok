@@ -1,6 +1,7 @@
 package com.example.android.miwok;
 
-import android.content.Intent;
+import android.content.Context;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -11,21 +12,43 @@ import android.widget.ListView;
 import java.util.ArrayList;
 
 
+
 public class NumbersActivity extends AppCompatActivity {
 
     private MediaPlayer mMediaPlayer;
 
-    private MediaPlayer.OnCompletionListener mMediaCompletionListener = new MediaPlayer.OnCompletionListener() {
+    private MediaPlayer.OnCompletionListener mMediaCompletionListener =
+            new MediaPlayer.OnCompletionListener() {
         @Override
         public void onCompletion(MediaPlayer mediaPlayer) {
             releaseMediaPlayer();
         }
     };
 
+    private AudioManager mAudioManager;
+
+    private AudioManager.OnAudioFocusChangeListener mAudFocChngListnr =
+            new AudioManager.OnAudioFocusChangeListener() {
+                @Override
+                public void onAudioFocusChange(int i) {
+                    if (i == AudioManager.AUDIOFOCUS_GAIN) {
+                        mMediaPlayer.start();
+                    } else if (i == AudioManager.AUDIOFOCUS_LOSS) {
+                        releaseMediaPlayer();
+                    } else if (i == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                            || i == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                        mMediaPlayer.pause();
+                        mMediaPlayer.seekTo(0);
+                    }
+                }
+            };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.word_list);
+
+        mAudioManager = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
 
         final ArrayList<Word> words = new ArrayList<Word>();
         words.add(new Word("lutti","one",R.drawable.number_one,R.raw.number_one));
@@ -48,10 +71,16 @@ public class NumbersActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 releaseMediaPlayer();
 
-                mMediaPlayer = MediaPlayer.create(NumbersActivity.this, words.get(position).getmAudioResourceId());
-                mMediaPlayer.start();
+                int result = mAudioManager.requestAudioFocus(mAudFocChngListnr,
+                        AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
 
-                mMediaPlayer.setOnCompletionListener(mMediaCompletionListener);
+                if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    mMediaPlayer = MediaPlayer.create(NumbersActivity.this,
+                            words.get(position).getmAudioResourceId());
+                    mMediaPlayer.start();
+
+                    mMediaPlayer.setOnCompletionListener(mMediaCompletionListener);
+                }
             }
         });
     }
@@ -77,6 +106,9 @@ public class NumbersActivity extends AppCompatActivity {
             // setting the media player to null is an easy way to tell that the media player
             // is not configured to play an audio file at the moment.
             mMediaPlayer = null;
+
+            mAudioManager.abandonAudioFocus(mAudFocChngListnr);
         }
+
     }
 }
